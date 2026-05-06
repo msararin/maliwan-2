@@ -44,6 +44,81 @@ test("skeleton modules return placeholder objects", () => {
   assert.equal(typeof orchestrator.readMedicationScheduleForMember, "function");
 });
 
+test("worker wires เช็กยาวันนี้ to medication schedule orchestration", () => {
+  const calls = [];
+  const worker = createWorkerHandler({
+    careOrchestrator: {
+      readMedicationScheduleForMember(input) {
+        calls.push(input);
+        return {
+          kind: "medication-schedule-review",
+          status: "ready",
+          householdId: input.householdId,
+          memberId: input.memberId,
+          memberDisplayName: input.memberDisplayName,
+          summary: "วันนี้คุณ Rin มียา 1 รายการค่ะ",
+          prompt: "กินตัวไหนแล้วบ้างคะ?",
+          scheduleCount: 1,
+          scheduleItems: [
+            {
+              medicationName: "Pristiq",
+              time: "10.00am",
+              note: "หลังอาหารเช้า",
+            },
+          ],
+          suggestedResponses: ["Pristiq", "กินครบแล้ว", "ยังไม่ได้กิน"],
+        };
+      },
+    },
+  });
+
+  const response = worker.handle({
+    action: "เช็กยาวันนี้",
+    lineUserId: "line-rin",
+  });
+
+  assert.deepEqual(calls, [
+    {
+      householdId: "household-malaithong",
+      memberId: "member-rin",
+      memberDisplayName: "Rin",
+    },
+  ]);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.kind, "line-reply");
+  assert.equal(response.body.status, "ready");
+  assert.equal(response.body.householdId, "household-malaithong");
+  assert.equal(response.body.memberId, "member-rin");
+  assert.equal(response.body.memberDisplayName, "Rin");
+  assert.equal(
+    response.body.text,
+    "วันนี้คุณ Rin มียา 1 รายการค่ะ\nกินตัวไหนแล้วบ้างคะ?\n1. 10.00am - Pristiq (หลังอาหารเช้า)"
+  );
+  assert.deepEqual(response.body.suggestedResponses, ["Pristiq", "กินครบแล้ว", "ยังไม่ได้กิน"]);
+});
+
+test("worker returns a safe response when member context is missing", () => {
+  const worker = createWorkerHandler({
+    careOrchestrator: {
+      readMedicationScheduleForMember() {
+        throw new Error("should not be called");
+      },
+    },
+    memberDirectory: {},
+  });
+
+  const response = worker.handle({
+    text: "เช็กยาวันนี้",
+    lineUserId: "unknown-user",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.kind, "line-reply");
+  assert.equal(response.body.status, "needs-member-context");
+  assert.equal(response.body.text, "ยังไม่ทราบว่าต้องเช็กยาวันนี้ของใครค่ะ");
+  assert.deepEqual(response.body.suggestedResponses, ["Rin", "Benchawan", "กลับเมนูหลัก"]);
+});
+
 test("care orchestrator returns a reviewable medication schedule model", () => {
   const calls = [];
   const orchestrator = createCareOrchestrator({
