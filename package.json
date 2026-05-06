@@ -4,6 +4,7 @@
   "private": true,
   "description": "Maliwan 2.0 repository skeleton for a household-aware care orchestrator.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "smoke:line-read": "node scripts/smoke-line-read.js"
   }
 }

@@ -9,6 +9,7 @@ const { createHouseholdModel } = require("../src/domain/household/householdModel
 const { createMedicationModel } = require("../src/domain/medication/medicationModel");
 const { createMedicationRepository } = require("../src/domain/medication/medicationRepository");
 const { createD1MedicationRepository } = require("../src/infrastructure/d1/d1MedicationRepository");
+const { formatReport, runSmokeLineRead } = require("../scripts/smoke-line-read");
 
 const schemaPath = path.join(__dirname, "..", "src", "infrastructure", "d1", "schema.sql");
 const seedPath = path.join(__dirname, "..", "src", "infrastructure", "d1", "seed.example.json");
@@ -264,6 +265,25 @@ test("worker and orchestrator stay free of direct D1 SQL", () => {
   assert.equal(workerSource.includes("INSERT INTO"), false);
   assert.equal(orchestratorSource.includes("SELECT "), false);
   assert.equal(orchestratorSource.includes("INSERT INTO"), false);
+});
+
+test("smoke:line-read script reports the read-only medication flow", () => {
+  const report = runSmokeLineRead();
+  const rendered = formatReport(report);
+
+  assert.equal(report.inputText, "เช็กยาวันนี้");
+  assert.deepEqual(report.resolvedMemberContext, {
+    householdId: "household-malaithong",
+    memberId: "member-rin",
+    memberDisplayName: "Rin",
+  });
+  assert.equal(report.responseKind, "line-reply");
+  assert.equal(report.responseStatus, "ready");
+  assert.equal(report.replyText, "วันนี้คุณ Rin มียา 1 รายการค่ะ\nกินตัวไหนแล้วบ้างคะ?\n1. 10.00am - Pristiq (หลังอาหารเช้า)");
+  assert.deepEqual(report.suggestedResponses, ["Pristiq", "กินครบแล้ว", "ยังไม่ได้กิน"]);
+  assert.ok(rendered.includes("Big Crew smoke: line read"));
+  assert.ok(rendered.includes("input text: เช็กยาวันนี้"));
+  assert.ok(rendered.includes("response status: ready"));
 });
 
 test("medication repository contract requires household and member identity", () => {
