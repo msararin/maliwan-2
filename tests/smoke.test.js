@@ -71,6 +71,100 @@ test("medication repository contract requires household and member identity", ()
   assert.throws(() => d1MedicationRepository.createMedicationLog({ householdId: "household-malaithong", memberId: "member-rin", medicationScheduleId: "schedule-rin-pristiq", recordedByLineUserId: "line-rin" }), /takenAt/);
 });
 
+test("d1 medication repository uses scoped D1 queries for schedules and logs", () => {
+  const calls = [];
+  const scheduleRows = [
+    {
+      medication_schedule_id: "schedule-rin-pristiq",
+      household_id: "household-malaithong",
+      member_id: "member-rin",
+      medication_name: "Pristiq",
+      time: "10.00am",
+      note: "",
+      active: 1,
+    },
+  ];
+
+  const d1Database = {
+    prepare(sql) {
+      const statement = {
+        bind(...values) {
+          calls.push({ type: "bind", sql, values });
+          return statement;
+        },
+        all() {
+          calls.push({ type: "all", sql });
+          if (sql.includes("FROM medication_schedules") && sql.includes("medication_schedule_id = ?")) {
+            return { results: scheduleRows };
+          }
+          if (sql.includes("FROM medication_schedules")) {
+            return { results: scheduleRows };
+          }
+          return { results: [] };
+        },
+        run() {
+          calls.push({ type: "run", sql });
+          return { success: true, meta: { changes: 1 } };
+        },
+      };
+
+      calls.push({ type: "prepare", sql });
+      return statement;
+    },
+  };
+
+  const repository = createD1MedicationRepository(d1Database);
+
+  const schedules = repository.findMedicationSchedulesByMember({
+    householdId: "household-malaithong",
+    memberId: "member-rin",
+  });
+
+  assert.equal(repository.kind, "d1-repository");
+  assert.deepEqual(schedules, scheduleRows);
+  assert.ok(calls[0].sql.includes("FROM medication_schedules"));
+  assert.deepEqual(calls[1], {
+    type: "bind",
+    sql: calls[0].sql,
+    values: ["household-malaithong", "member-rin"],
+  });
+  assert.equal(calls[2].type, "all");
+
+  calls.length = 0;
+
+  const logResult = repository.createMedicationLog({
+    householdId: "household-malaithong",
+    memberId: "member-rin",
+    medicationScheduleId: "schedule-rin-pristiq",
+    recordedByLineUserId: "line-rin",
+    takenAt: "2026-05-06T10:00:00Z",
+  });
+
+  assert.deepEqual(logResult, { success: true, meta: { changes: 1 } });
+  assert.ok(calls[0].sql.includes("medication_schedule_id = ?"));
+  assert.deepEqual(calls[1], {
+    type: "bind",
+    sql: calls[0].sql,
+    values: ["household-malaithong", "member-rin", "schedule-rin-pristiq"],
+  });
+  assert.equal(calls[2].type, "all");
+  assert.ok(calls[3].sql.includes("INSERT INTO medication_logs"));
+  assert.equal(calls[4].type, "bind");
+  assert.equal(calls[4].sql, calls[3].sql);
+  assert.equal(calls[5].type, "run");
+  assert.equal(typeof calls[4].values[0], "string");
+  assert.ok(calls[4].values[0].length > 0);
+  assert.deepEqual(calls[4].values.slice(1), [
+    "household-malaithong",
+    "member-rin",
+    "line-rin",
+    "Pristiq",
+    "taken",
+    "d1-medication-repository",
+    "2026-05-06T10:00:00Z",
+  ]);
+});
+
 test("bootstrap placeholders exist for D1 schema and seed data", () => {
   assert.ok(fs.existsSync(schemaPath), "expected D1 schema placeholder to exist");
   assert.ok(fs.existsSync(seedPath), "expected seed data placeholder to exist");
