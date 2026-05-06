@@ -27,12 +27,48 @@ test("skeleton modules return placeholder objects", () => {
   const orchestrator = createCareOrchestrator();
   const household = createHouseholdModel({ household_id: "household-001", name: "Primary Household" });
   const medication = createMedicationModel({ household_id: "household-001", member_id: "member-rin", medication_name: "Pristiq" });
+  const medicationRepository = createMedicationRepository();
+  const d1MedicationRepository = createD1MedicationRepository();
 
   assert.equal(worker.name, "maliwan-2-worker");
   assert.equal(worker.handle().status, 200);
   assert.equal(orchestrator.plan().scope, "standalone repo bootstrap");
   assert.equal(household.household_id, "household-001");
   assert.equal(medication.medication_name, "Pristiq");
+  assert.equal(medicationRepository.kind, "repository-interface-placeholder");
+  assert.equal(d1MedicationRepository.kind, "d1-repository-placeholder");
+  assert.equal(typeof medicationRepository.findMedicationSchedulesByMember, "function");
+  assert.equal(typeof medicationRepository.createMedicationLog, "function");
+  assert.equal(typeof d1MedicationRepository.findMedicationSchedulesByMember, "function");
+  assert.equal(typeof d1MedicationRepository.createMedicationLog, "function");
+});
+
+test("medication repository contract requires household and member identity", () => {
+  const medicationRepository = createMedicationRepository();
+  const d1MedicationRepository = createD1MedicationRepository();
+
+  const validScheduleRequest = {
+    householdId: "household-malaithong",
+    memberId: "member-rin",
+  };
+
+  const validLogRequest = {
+    householdId: "household-malaithong",
+    memberId: "member-rin",
+    medicationScheduleId: "schedule-rin-pristiq",
+    recordedByLineUserId: "line-rin",
+    takenAt: "2026-05-06T10:00:00Z",
+  };
+
+  assert.deepEqual(medicationRepository.findMedicationSchedulesByMember(validScheduleRequest), []);
+  assert.equal(medicationRepository.createMedicationLog(validLogRequest), null);
+  assert.deepEqual(d1MedicationRepository.findMedicationSchedulesByMember(validScheduleRequest), []);
+  assert.equal(d1MedicationRepository.createMedicationLog(validLogRequest), null);
+
+  assert.throws(() => medicationRepository.findMedicationSchedulesByMember({ memberId: "member-rin" }), /householdId/);
+  assert.throws(() => medicationRepository.findMedicationSchedulesByMember({ householdId: "household-malaithong" }), /memberId/);
+  assert.throws(() => medicationRepository.createMedicationLog({ householdId: "household-malaithong", memberId: "member-rin", medicationScheduleId: "schedule-rin-pristiq", takenAt: "2026-05-06T10:00:00Z" }), /recordedByLineUserId/);
+  assert.throws(() => d1MedicationRepository.createMedicationLog({ householdId: "household-malaithong", memberId: "member-rin", medicationScheduleId: "schedule-rin-pristiq", recordedByLineUserId: "line-rin" }), /takenAt/);
 });
 
 test("bootstrap placeholders exist for D1 schema and seed data", () => {
