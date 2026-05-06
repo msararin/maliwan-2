@@ -41,6 +41,96 @@ test("skeleton modules return placeholder objects", () => {
   assert.equal(typeof medicationRepository.createMedicationLog, "function");
   assert.equal(typeof d1MedicationRepository.findMedicationSchedulesByMember, "function");
   assert.equal(typeof d1MedicationRepository.createMedicationLog, "function");
+  assert.equal(typeof orchestrator.readMedicationScheduleForMember, "function");
+});
+
+test("care orchestrator returns a reviewable medication schedule model", () => {
+  const calls = [];
+  const orchestrator = createCareOrchestrator({
+    medicationRepository: {
+      findMedicationSchedulesByMember(input) {
+        calls.push(input);
+        return [
+          {
+            medication_schedule_id: "schedule-rin-pristiq",
+            household_id: input.householdId,
+            member_id: input.memberId,
+            medication_name: "Pristiq",
+            time: "10.00am",
+            note: "หลังอาหารเช้า",
+            active: 1,
+          },
+        ];
+      },
+    },
+  });
+
+  const result = orchestrator.readMedicationScheduleForMember({
+    householdId: "household-malaithong",
+    memberId: "member-rin",
+    memberDisplayName: "Rin",
+  });
+
+  assert.deepEqual(calls, [
+    {
+      householdId: "household-malaithong",
+      memberId: "member-rin",
+    },
+  ]);
+  assert.equal(result.kind, "medication-schedule-review");
+  assert.equal(result.status, "ready");
+  assert.equal(result.householdId, "household-malaithong");
+  assert.equal(result.memberId, "member-rin");
+  assert.equal(result.memberDisplayName, "Rin");
+  assert.equal(result.scheduleCount, 1);
+  assert.equal(result.summary, "วันนี้คุณ Rin มียา 1 รายการค่ะ");
+  assert.equal(result.prompt, "กินตัวไหนแล้วบ้างคะ?");
+  assert.deepEqual(result.suggestedResponses, ["Pristiq", "กินครบแล้ว", "ยังไม่ได้กิน"]);
+  assert.deepEqual(result.scheduleItems, [
+    {
+      medicationScheduleId: "schedule-rin-pristiq",
+      householdId: "household-malaithong",
+      memberId: "member-rin",
+      medicationName: "Pristiq",
+      time: "10.00am",
+      note: "หลังอาหารเช้า",
+      active: 1,
+    },
+  ]);
+});
+
+test("care orchestrator returns a safe empty medication schedule model", () => {
+  const calls = [];
+  const orchestrator = createCareOrchestrator({
+    medicationRepository: {
+      findMedicationSchedulesByMember(input) {
+        calls.push(input);
+        return [];
+      },
+    },
+  });
+
+  const result = orchestrator.readMedicationScheduleForMember({
+    householdId: "household-malaithong",
+    memberId: "member-benchawan",
+    member_name: "Benchawan",
+  });
+
+  assert.deepEqual(calls, [
+    {
+      householdId: "household-malaithong",
+      memberId: "member-benchawan",
+    },
+  ]);
+  assert.equal(result.kind, "medication-schedule-review");
+  assert.equal(result.status, "empty");
+  assert.equal(result.householdId, "household-malaithong");
+  assert.equal(result.memberId, "member-benchawan");
+  assert.equal(result.memberDisplayName, "Benchawan");
+  assert.equal(result.scheduleCount, 0);
+  assert.equal(result.summary, "วันนี้ยังไม่มียาที่ตั้งไว้สำหรับ Benchawan ค่ะ");
+  assert.deepEqual(result.scheduleItems, []);
+  assert.deepEqual(result.suggestedResponses, ["กลับเมนูหลัก", "ยกเลิก"]);
 });
 
 test("medication repository contract requires household and member identity", () => {
