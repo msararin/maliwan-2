@@ -40,13 +40,42 @@ test("bootstrap placeholders exist for D1 schema and seed data", () => {
   assert.ok(fs.existsSync(seedPath), "expected seed data placeholder to exist");
 
   const schema = fs.readFileSync(schemaPath, "utf8");
-  const seed = fs.readFileSync(seedPath, "utf8");
+  const seed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
 
   assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS households"));
   assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS household_members"));
   assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS line_identities"));
   assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS medication_schedules"));
   assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS medication_logs"));
-  assert.ok(seed.includes('"display_name": "Rin"'));
-  assert.ok(seed.includes('"display_name": "Benchawan"'));
+  assert.ok(schema.includes("household_id TEXT NOT NULL"));
+  assert.ok(schema.includes("member_id TEXT NOT NULL"));
+  assert.ok(schema.includes("line_user_id TEXT PRIMARY KEY"));
+  assert.ok(schema.includes("FOREIGN KEY (line_user_id) REFERENCES line_identities (line_user_id)"));
+
+  assert.equal(seed.households.length, 1);
+  assert.equal(seed.households[0].name, "Malaithong household");
+  assert.equal(seed.household_members.length, 2);
+  assert.deepEqual(
+    seed.household_members.map((member) => member.display_name).sort(),
+    ["Benchawan", "Rin"]
+  );
+  assert.equal(seed.line_identities.length, 2);
+  assert.equal(seed.medication_schedules.length, 2);
+  assert.equal(seed.medication_logs.length, 1);
+  assert.ok(seed.medication_schedules.every((entry) => entry.household_id === "household-malaithong"));
+  assert.ok(seed.medication_schedules.every((entry) => typeof entry.member_id === "string" && entry.member_id.length > 0));
+  assert.ok(seed.medication_logs.every((entry) => typeof entry.line_user_id === "string" && entry.line_user_id.length > 0));
+});
+
+test("bootstrap repo does not introduce inventory or admin UI implementation files", () => {
+  const forbiddenPaths = [
+    path.join(__dirname, "..", "src", "inventory"),
+    path.join(__dirname, "..", "src", "admin"),
+    path.join(__dirname, "..", "src", "ui"),
+    path.join(__dirname, "..", "src", "runtime"),
+  ];
+
+  forbiddenPaths.forEach((forbiddenPath) => {
+    assert.equal(fs.existsSync(forbiddenPath), false, `did not expect ${forbiddenPath} to exist`);
+  });
 });
