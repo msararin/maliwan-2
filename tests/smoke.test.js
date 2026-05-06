@@ -119,6 +119,49 @@ test("worker returns a safe response when member context is missing", () => {
   assert.deepEqual(response.body.suggestedResponses, ["Rin", "Benchawan", "กลับเมนูหลัก"]);
 });
 
+test("worker surfaces an empty medication schedule reply safely", () => {
+  let callCount = 0;
+  const worker = createWorkerHandler({
+    careOrchestrator: {
+      readMedicationScheduleForMember(input) {
+        callCount += 1;
+        assert.deepEqual(input, {
+          householdId: "household-malaithong",
+          memberId: "member-benchawan",
+          memberDisplayName: "Benchawan",
+        });
+
+        return {
+          kind: "medication-schedule-review",
+          status: "empty",
+          householdId: input.householdId,
+          memberId: input.memberId,
+          memberDisplayName: input.memberDisplayName,
+          summary: "วันนี้ยังไม่มียาที่ตั้งไว้สำหรับ Benchawan ค่ะ",
+          scheduleCount: 0,
+          scheduleItems: [],
+          suggestedResponses: ["กลับเมนูหลัก", "ยกเลิก"],
+        };
+      },
+    },
+  });
+
+  const response = worker.handle({
+    message: "เช็กยาวันนี้",
+    userId: "line-benchawan",
+  });
+
+  assert.equal(callCount, 1);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.kind, "line-reply");
+  assert.equal(response.body.status, "empty");
+  assert.equal(response.body.householdId, "household-malaithong");
+  assert.equal(response.body.memberId, "member-benchawan");
+  assert.equal(response.body.memberDisplayName, "Benchawan");
+  assert.equal(response.body.text, "วันนี้ยังไม่มียาที่ตั้งไว้สำหรับ Benchawan ค่ะ");
+  assert.deepEqual(response.body.suggestedResponses, ["กลับเมนูหลัก", "ยกเลิก"]);
+});
+
 test("care orchestrator returns a reviewable medication schedule model", () => {
   const calls = [];
   const orchestrator = createCareOrchestrator({
@@ -206,6 +249,21 @@ test("care orchestrator returns a safe empty medication schedule model", () => {
   assert.equal(result.summary, "วันนี้ยังไม่มียาที่ตั้งไว้สำหรับ Benchawan ค่ะ");
   assert.deepEqual(result.scheduleItems, []);
   assert.deepEqual(result.suggestedResponses, ["กลับเมนูหลัก", "ยกเลิก"]);
+});
+
+test("worker and orchestrator stay free of direct D1 SQL", () => {
+  const workerSource = fs.readFileSync(path.join(__dirname, "..", "src", "app", "worker.js"), "utf8");
+  const orchestratorSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "orchestrator", "careOrchestrator.js"),
+    "utf8"
+  );
+
+  assert.ok(workerSource.includes("readMedicationScheduleForMember"));
+  assert.ok(orchestratorSource.includes("readMedicationScheduleForMember"));
+  assert.equal(workerSource.includes("SELECT "), false);
+  assert.equal(workerSource.includes("INSERT INTO"), false);
+  assert.equal(orchestratorSource.includes("SELECT "), false);
+  assert.equal(orchestratorSource.includes("INSERT INTO"), false);
 });
 
 test("medication repository contract requires household and member identity", () => {
