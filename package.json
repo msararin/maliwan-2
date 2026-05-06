@@ -1,0 +1,9 @@
+{
+  "name": "maliwan-2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Maliwan 2.0 repository skeleton for a household-aware care orchestrator.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

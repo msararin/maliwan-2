@@ -1,0 +1,20 @@
+{
+  "households": [
+    {
+      "household_id": "household-001",
+      "name": "Primary Household"
+    }
+  ],
+  "household_members": [
+    {
+      "member_id": "member-rin",
+      "household_id": "household-001",
+      "display_name": "Rin"
+    },
+    {
+      "member_id": "member-benchawan",
+      "household_id": "household-001",
+      "display_name": "Benchawan"
+    }
+  ]
+}
