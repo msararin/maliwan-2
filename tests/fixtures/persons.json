@@ -1,0 +1,14 @@
+[
+  {
+    "household_id": "test-household",
+    "member_id": "test-rin",
+    "line_user_id": "test-line-rin",
+    "display_name": "Test Rin"
+  },
+  {
+    "household_id": "test-household",
+    "member_id": "test-benchawan",
+    "line_user_id": "test-line-benchawan",
+    "display_name": "Test Benchawan"
+  }
+]

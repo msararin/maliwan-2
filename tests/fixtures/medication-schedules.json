@@ -1,0 +1,18 @@
+[
+  {
+    "medication_schedule_id": "test-schedule-rin-morning",
+    "household_id": "test-household",
+    "member_id": "test-rin",
+    "medication_name": "TestMedMorning",
+    "time": "08:00",
+    "active": 1
+  },
+  {
+    "medication_schedule_id": "test-schedule-benchawan-night",
+    "household_id": "test-household",
+    "member_id": "test-benchawan",
+    "medication_name": "TestMedNight",
+    "time": "20:00",
+    "active": 1
+  }
+]

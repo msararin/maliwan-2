@@ -24,6 +24,16 @@
 Cloudflare D1 is the first SQL-backed data layer candidate.
 The repository boundary should keep domain logic separate from D1-specific storage code.
 
+## Data Environment Boundary
+
+Maliwan 2 separates `test`, `staging`, and `production` data before LINE OA integration or real household beta testing.
+
+- automated tests use fake/mock data only
+- staging should use sandbox bindings and non-production users
+- production requires explicit release review before real household data is used
+
+See [Data Environments](DATA_ENVIRONMENTS.md).
+
 ## Deferred Areas
 
 - inventory implementation

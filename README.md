@@ -29,6 +29,32 @@ This repository currently contains:
 - a seed data placeholder
 - a smoke test for skeleton imports
 
+## Current Project Status
+
+Maliwan 2 is in core flow stabilization.
+
+- Read-only medication schedule flow works locally.
+- D1 schema, repository contract, D1 adapter, orchestrator, and LINE-style handler wiring exist.
+- Automated tests use fake data and must not touch production data.
+- Production LINE OA integration is not connected yet.
+- Next technical priority is P0 staging runtime setup before any mom beta or production LINE OA work.
+
+## Staging Worker
+
+Current staging endpoint:
+
+```text
+https://maliwan-2-staging.msararin.workers.dev
+```
+
+Health check:
+
+```text
+https://maliwan-2-staging.msararin.workers.dev/health
+```
+
+LINE OA test channel should remain disconnected until staging health, data separation, and smoke checks pass.
+
 ## Validation
 
 Run:
@@ -36,6 +62,23 @@ Run:
 ```bash
 npm test
 ```
+
+For the current read-only medication flow smoke test:
+
+```bash
+npm run smoke:line-read
+```
+
+## Documentation
+
+- [Project Vision](docs/PROJECT_VISION.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Engineering Principles](docs/ENGINEERING_PRINCIPLES.md)
+- [Codex Task Brief Template](docs/CODEX_TASK_BRIEF_TEMPLATE.md)
+- [Data Environments](docs/DATA_ENVIRONMENTS.md)
+- [Operating Model](docs/OPERATING_MODEL.md)
+- [Staging Runtime](docs/STAGING_RUNTIME.md)
+- [Architecture](docs/architecture.md)
 
 ## Notes
 

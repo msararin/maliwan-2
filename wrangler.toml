@@ -1,0 +1,36 @@
+name = "maliwan-2"
+main = "src/app/cloudflareWorker.mjs"
+compatibility_date = "2026-05-07"
+
+[vars]
+MALIWAN_DATA_ENV = "test"
+MALIWAN_DATA_STORE = "maliwan2_test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "maliwan2_test"
+database_id = "replace-with-test-d1-database-id"
+
+[env.staging]
+name = "maliwan-2-staging"
+
+[env.staging.vars]
+MALIWAN_DATA_ENV = "staging"
+MALIWAN_DATA_STORE = "maliwan2_staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "maliwan2_staging"
+database_id = "d3c1c9d8-915e-4f3f-ac51-dc5e9160be80"
+
+[env.production]
+name = "maliwan-2-production"
+
+[env.production.vars]
+MALIWAN_DATA_ENV = "production"
+MALIWAN_DATA_STORE = "maliwan2_production"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "maliwan2_production"
+database_id = "replace-with-production-d1-database-id"

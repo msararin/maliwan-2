@@ -1,0 +1,16 @@
+[
+  {
+    "inventory_item_id": "test-inventory-rice",
+    "household_id": "test-household",
+    "name": "Test Rice",
+    "quantity": 1,
+    "unit": "bag"
+  },
+  {
+    "inventory_item_id": "test-inventory-egg",
+    "household_id": "test-household",
+    "name": "Test Egg",
+    "quantity": 6,
+    "unit": "pieces"
+  }
+]

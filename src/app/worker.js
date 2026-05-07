@@ -54,6 +54,27 @@ function createWorkerHandler(dependencies = {}) {
   };
 }
 
+async function handleHttpRequest(request, dependencies = {}) {
+  const url = new URL(request.url);
+
+  if (url.pathname === "/health") {
+    return createJsonResponse({
+      ok: true,
+      service: "maliwan-2",
+      environment: normalizeText(dependencies.dataEnvironment || "staging"),
+      status: "ready",
+    });
+  }
+
+  return createJsonResponse(
+    {
+      ok: false,
+      error: "not_found",
+    },
+    404
+  );
+}
+
 function resolveMemberContext(memberDirectory, lineUserId) {
   if (!lineUserId || !memberDirectory || typeof memberDirectory !== "object") {
     return null;
@@ -112,10 +133,20 @@ function createLineResponse(payload) {
   };
 }
 
+function createJsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+    },
+  });
+}
+
 function normalizeText(value) {
   return String(value || "").trim();
 }
 
 module.exports = {
   createWorkerHandler,
+  handleHttpRequest,
 };

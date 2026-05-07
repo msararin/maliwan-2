@@ -3,23 +3,36 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { createWorkerHandler } = require("../src/app/worker");
+const { createWorkerHandler, handleHttpRequest } = require("../src/app/worker");
 const { createCareOrchestrator } = require("../src/orchestrator/careOrchestrator");
 const { createHouseholdModel } = require("../src/domain/household/householdModel");
 const { createMedicationModel } = require("../src/domain/medication/medicationModel");
 const { createMedicationRepository } = require("../src/domain/medication/medicationRepository");
+const {
+  DATA_ENVIRONMENTS,
+  assertAutomatedTestDataBoundary,
+  createDataEnvironmentConfig,
+} = require("../src/config/dataEnvironment");
 const { createD1MedicationRepository } = require("../src/infrastructure/d1/d1MedicationRepository");
 const { formatReport, runSmokeLineRead } = require("../scripts/smoke-line-read");
 
 const schemaPath = path.join(__dirname, "..", "src", "infrastructure", "d1", "schema.sql");
 const seedPath = path.join(__dirname, "..", "src", "infrastructure", "d1", "seed.example.json");
+const wranglerPath = path.join(__dirname, "..", "wrangler.toml");
+const fixturesPath = path.join(__dirname, "fixtures");
+
+function readFixture(fileName) {
+  return JSON.parse(fs.readFileSync(path.join(fixturesPath, fileName), "utf8"));
+}
 
 test("skeleton imports do not fail", () => {
   assert.equal(typeof createWorkerHandler, "function");
+  assert.equal(typeof handleHttpRequest, "function");
   assert.equal(typeof createCareOrchestrator, "function");
   assert.equal(typeof createHouseholdModel, "function");
   assert.equal(typeof createMedicationModel, "function");
   assert.equal(typeof createMedicationRepository, "function");
+  assert.equal(typeof createDataEnvironmentConfig, "function");
   assert.equal(typeof createD1MedicationRepository, "function");
 });
 
@@ -265,6 +278,136 @@ test("worker and orchestrator stay free of direct D1 SQL", () => {
   assert.equal(workerSource.includes("INSERT INTO"), false);
   assert.equal(orchestratorSource.includes("SELECT "), false);
   assert.equal(orchestratorSource.includes("INSERT INTO"), false);
+});
+
+test("health check endpoint supports staging runtime smoke checks", async () => {
+  const response = await handleHttpRequest(new Request("https://maliwan-2-staging.example.test/health"), {
+    dataEnvironment: DATA_ENVIRONMENTS.STAGING,
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, {
+    ok: true,
+    service: "maliwan-2",
+    environment: "staging",
+    status: "ready",
+  });
+});
+
+test("wrangler config defines separated staging and production runtime placeholders", () => {
+  const wranglerConfig = fs.readFileSync(wranglerPath, "utf8");
+
+  assert.ok(wranglerConfig.includes('main = "src/app/cloudflareWorker.mjs"'));
+  assert.ok(wranglerConfig.includes("[env.staging]"));
+  assert.ok(wranglerConfig.includes("[env.production]"));
+  assert.ok(wranglerConfig.includes('binding = "DB"'));
+  assert.ok(wranglerConfig.includes('database_name = "maliwan2_staging"'));
+  assert.ok(wranglerConfig.includes('database_name = "maliwan2_production"'));
+  assert.ok(wranglerConfig.includes('MALIWAN_DATA_ENV = "staging"'));
+  assert.ok(wranglerConfig.includes('MALIWAN_DATA_ENV = "production"'));
+  assert.equal(wranglerConfig.includes("replace-with-staging-d1-database-id"), false);
+  assert.ok(wranglerConfig.includes("d3c1c9d8-915e-4f3f-ac51-dc5e9160be80"));
+  assert.ok(wranglerConfig.includes("replace-with-production-d1-database-id"));
+});
+
+test("data environment guard keeps automated tests away from production data", () => {
+  const testConfig = createDataEnvironmentConfig({
+    dataEnvironment: DATA_ENVIRONMENTS.TEST,
+    dataStoreName: "maliwan-test-local",
+  });
+
+  assert.equal(testConfig.dataEnvironment, "test");
+  assert.equal(testConfig.isTest, true);
+  assert.equal(assertAutomatedTestDataBoundary(testConfig), true);
+
+  assert.throws(
+    () =>
+      assertAutomatedTestDataBoundary({
+        dataEnvironment: DATA_ENVIRONMENTS.STAGING,
+        dataStoreName: "maliwan-staging-d1",
+      }),
+    /Automated tests must use the test data environment/
+  );
+  assert.throws(
+    () =>
+      assertAutomatedTestDataBoundary({
+        dataEnvironment: DATA_ENVIRONMENTS.TEST,
+        dataStoreName: "maliwan-production-d1",
+      }),
+    /Automated tests must not point at production data stores/
+  );
+  assert.throws(
+    () =>
+      assertAutomatedTestDataBoundary({
+        nodeEnvironment: "test",
+        dataEnvironment: DATA_ENVIRONMENTS.PRODUCTION,
+        dataStoreName: "maliwan2_prod",
+      }),
+    /NODE_ENV=test must not use non-test data environments/
+  );
+});
+
+test("test fixtures keep medication person-scoped and inventory household-scoped", () => {
+  const persons = readFixture("persons.json");
+  const schedules = readFixture("medication-schedules.json");
+  const logs = readFixture("medication-logs.json");
+  const inventoryItems = readFixture("inventory-items.json");
+
+  assert.deepEqual(
+    persons.map((person) => person.member_id).sort(),
+    ["test-benchawan", "test-rin"]
+  );
+  assert.ok(persons.every((person) => person.household_id === "test-household"));
+  assert.ok(persons.every((person) => person.line_user_id.startsWith("test-line-")));
+
+  assert.ok(schedules.every((schedule) => schedule.household_id === "test-household"));
+  assert.ok(schedules.every((schedule) => schedule.member_id.startsWith("test-")));
+  assert.deepEqual(
+    schedules.map((schedule) => schedule.medication_name).sort(),
+    ["TestMedMorning", "TestMedNight"]
+  );
+
+  assert.ok(logs.every((log) => log.household_id === "test-household"));
+  assert.ok(logs.every((log) => log.member_id.startsWith("test-")));
+  assert.ok(logs.every((log) => log.line_user_id.startsWith("test-line-")));
+
+  assert.ok(inventoryItems.every((item) => item.household_id === "test-household"));
+  assert.ok(inventoryItems.every((item) => !Object.hasOwn(item, "member_id")));
+});
+
+test("medication schedule read can use fake person fixture data", () => {
+  const persons = readFixture("persons.json");
+  const schedules = readFixture("medication-schedules.json");
+  const testRin = persons.find((person) => person.member_id === "test-rin");
+  const calls = [];
+  const orchestrator = createCareOrchestrator({
+    medicationRepository: {
+      findMedicationSchedulesByMember(input) {
+        calls.push(input);
+        return schedules.filter(
+          (schedule) => schedule.household_id === input.householdId && schedule.member_id === input.memberId
+        );
+      },
+    },
+  });
+
+  const result = orchestrator.readMedicationScheduleForMember({
+    householdId: testRin.household_id,
+    memberId: testRin.member_id,
+    memberDisplayName: testRin.display_name,
+  });
+
+  assert.deepEqual(calls, [
+    {
+      householdId: "test-household",
+      memberId: "test-rin",
+    },
+  ]);
+  assert.equal(result.status, "ready");
+  assert.equal(result.memberId, "test-rin");
+  assert.equal(result.scheduleCount, 1);
+  assert.equal(result.scheduleItems[0].medicationName, "TestMedMorning");
 });
 
 test("smoke:line-read script reports the read-only medication flow", () => {
